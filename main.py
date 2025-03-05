@@ -4,7 +4,7 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-# RNA Folding Prediction Model - Predict Secondary Structure
+# Define the RNA3DStructureModel (same as the one used for training)
 class RNA3DStructureModel(nn.Module):
     def __init__(self, seq_length):
         super(RNA3DStructureModel, self).__init__()
@@ -13,7 +13,7 @@ class RNA3DStructureModel(nn.Module):
         self.transformer_layer = nn.TransformerEncoderLayer(d_model=64, nhead=4, dim_feedforward=128, dropout=0.1)
         self.transformer = nn.TransformerEncoder(self.transformer_layer, num_layers=2)
         self.fc1 = nn.Linear(64, 64)
-        self.fc2 = nn.Linear(64, 4)  # Output size 4 for predicting secondary structure (base pairs)
+        self.fc2 = nn.Linear(64, 3)  # Output 3D coordinates (X, Y, Z)
     
     def forward(self, x):
         x = x.permute(0, 2, 1)  # Convert to (batch, channels, seq_length)
@@ -23,14 +23,14 @@ class RNA3DStructureModel(nn.Module):
         x = self.transformer(x)
         x = x.permute(1, 0, 2)  # Convert back to (batch, seq_length, channels)
         x = torch.relu(self.fc1(x))
-        x = self.fc2(x)  # Output probabilities for base pairing
+        x = self.fc2(x)  # Output the 3D coordinates (X, Y, Z)
         return x
 
-# Load the trained model
-seq_length = 100  # Ensure this matches the model's trained sequence length
+# Load the trained model (Make sure the model is compatible)
+seq_length = 100  # Make sure this matches the sequence length used during training
 model = RNA3DStructureModel(seq_length)
 model.load_state_dict(torch.load("RNAAlpha.pth"))
-model.eval()
+model.eval()  # Set the model to evaluation mode
 
 # One-hot encode function for RNA sequence
 def one_hot_encode(seq):
@@ -38,12 +38,12 @@ def one_hot_encode(seq):
     return np.array([encoding[nucleotide] for nucleotide in seq])
 
 # Example RNA sequence to classify
-rna_seq = "AUGC"  # Example sequence
+rna_seq = "AUGC"  # Example RNA sequence
 
 # Encode the RNA sequence using one-hot encoding
 encoded_seq = one_hot_encode(rna_seq)
 
-# Add batch dimension (since models expect a batch of data)
+# Add batch dimension (models expect a batch of data)
 encoded_seq_expanded = np.expand_dims(encoded_seq, axis=0)  # Shape (1, sequence_length, 4)
 
 # Convert to PyTorch tensor
@@ -53,12 +53,25 @@ input_tensor = torch.tensor(encoded_seq_expanded, dtype=torch.float32)
 with torch.no_grad():
     prediction = model(input_tensor)
 
-# Interpret the secondary structure prediction
-# Here we interpret the output as predicted base-pairing information
-base_pair_probs = prediction.numpy()
+# Interpret the predicted 3D coordinates
+predicted_3d_coordinates = prediction.numpy()
+print(f"Predicted 3D coordinates for the RNA sequence '{rna_seq}': {predicted_3d_coordinates}")
 
-# For simplicity, print out base-pairing probabilities (A-U, G-C)
-print(f"Base Pair Probabilities for RNA Sequence: {base_pair_probs}")
+# Visualize the 3D coordinates (X, Y, Z)
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
 
-# Further processing would be needed to convert this into a 3D structure (e.g., using ViennaRNA)
+# Extract the X, Y, Z coordinates
+x = predicted_3d_coordinates[:, 0]
+y = predicted_3d_coordinates[:, 1]
+z = predicted_3d_coordinates[:, 2]
 
+# Plot the 3D coordinates
+ax.scatter(x, y, z)
+
+# Optional: Label the axes
+ax.set_xlabel('X')
+ax.set_ylabel('Y')
+ax.set_zlabel('Z')
+
+plt.show()
